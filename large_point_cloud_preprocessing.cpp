@@ -19,13 +19,69 @@
 //filtering params {co = cut_off, vg = voxel grid, sor = statistical outlier removal}
 std::vector<double> co_min;
 std::vector<double> co_max;
+void cutOffFilter(pcl::PointCloud<PointNormalFace>::Ptr& input, pcl::PointCloud<PointNormalFace>::Ptr& output);
 
 std::vector<double> vg_params;
+void voxelGridFilter(pcl::PointCloud<PointNormalFace>::Ptr& input, pcl::PointCloud<PointNormalFace>::Ptr& output);
+
+// namespace pcl
+// {
+//   namespace traits {
+//     template <typename PointT>
+//     struct has_face : has_field<PointT, pcl::fields::face>
+//     { };
+
+//     // template <typename PointT>
+//     // using HasFace= std::enable_if_t<has_face<PointT>, bool>;
+//   }
+//   namespace detail
+//   {
+//     struct AccumulatorFace
+//     {
+//       using IsCompatible = pcl::traits::has_face<boost::mpl::_1>;
+
+//       // Storage
+//       Eigen::Vector3f xyz = Eigen::Vector3f::Zero ();
+//       std::map< int, std::vector<Eigen::Vector3f> > face_xyz;
+
+//       template <typename PointT> void
+//       add (const PointT& t) {
+//         xyz += t.getVector3fMap();
+//         face_xyz[t.face].push_back(t.getVector3fMap());
+//       }
+
+//       template <typename PointT> void
+//       get (PointT& t, std::size_t n) const {
+//         Eigen::Vector3f centroid = xyz / n;
+//         double min_dist = std::numeric_limits<double>::infinity();
+//         int face = -1;
+//         for(auto it = face_xyz.begin(); it != face_xyz.end(); it++) {
+//           Eigen::Vector3f mean = Eigen::Vector3f::Zero ();
+//           for(auto jt = it->second.begin(); jt != it->second.end(); jt++) {
+//             mean += *jt;
+//           }
+//           mean /= it->second.size();
+//           double distance = (mean-centroid).squaredNorm();
+//           if(distance < min_dist) {
+//             face = it->first;
+//             min_dist = distance;
+//           }
+//         }
+//         t.face = face; 
+//       }
+
+//       PCL_MAKE_ALIGNED_OPERATOR_NEW
+
+//     };
+//   }
+// }
 
 std::vector<double> sor_params;
+void statisticalOutlierRemovalFilter(pcl::PointCloud<PointNormalFace>::Ptr& input, pcl::PointCloud<PointNormalFace>::Ptr& output);
 
 //normal estimation params
 double ne_param;
+void normalEstimation(pcl::PointCloud<PointNormalFace>::Ptr& input, pcl::PointCloud<PointNormalFace>::Ptr& output, pcl::PointCloud<PointNormalFace>::Ptr& search);
 
 using namespace pcl;
 using namespace pcl::io;
@@ -86,7 +142,6 @@ main (int argc, char** argv)
   pcl::PointCloud<PointNormalFace>::Ptr cloud_filtered_co (new pcl::PointCloud<PointNormalFace>);
   pcl::PointCloud<PointNormalFace>::Ptr cloud_filtered_vg (new pcl::PointCloud<PointNormalFace>);
   pcl::PointCloud<PointNormalFace>::Ptr cloud_filtered_sor (new pcl::PointCloud<PointNormalFace>);
-  pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
   pcl::PointCloud<PointNormalFace>::Ptr cloud_normals (new pcl::PointCloud<PointNormalFace>);
 
   if(argc < 3)
@@ -116,90 +171,25 @@ main (int argc, char** argv)
   if(co_min.size() == 3 || co_max.size() == 3) {
     if(co_min.size() != 3) co_min = std::vector<double>(3, -std::numeric_limits<double>::infinity());
     if(co_max.size() != 3) co_max = std::vector<double>(3, std::numeric_limits<double>::infinity());
-    start_local = std::chrono::steady_clock::now();
-    std::cerr << "Cut-off Filtering..." << std::endl;
-    pcl::ConditionAnd<PointNormalFace>::Ptr range_cond (new
-      pcl::ConditionAnd<PointNormalFace> ());
-    range_cond->addComparison (pcl::FieldComparison<PointNormalFace>::ConstPtr (new
-      pcl::FieldComparison<PointNormalFace> ("x", pcl::ComparisonOps::GT, co_min[0])));
-    range_cond->addComparison (pcl::FieldComparison<PointNormalFace>::ConstPtr (new
-      pcl::FieldComparison<PointNormalFace> ("x", pcl::ComparisonOps::LT, co_max[0])));
-    range_cond->addComparison (pcl::FieldComparison<PointNormalFace>::ConstPtr (new
-      pcl::FieldComparison<PointNormalFace> ("y", pcl::ComparisonOps::GT, co_min[1])));
-    range_cond->addComparison (pcl::FieldComparison<PointNormalFace>::ConstPtr (new
-      pcl::FieldComparison<PointNormalFace> ("y", pcl::ComparisonOps::LT, co_max[1])));
-    range_cond->addComparison (pcl::FieldComparison<PointNormalFace>::ConstPtr (new
-      pcl::FieldComparison<PointNormalFace> ("z", pcl::ComparisonOps::GT, co_min[2])));
-    range_cond->addComparison (pcl::FieldComparison<PointNormalFace>::ConstPtr (new
-      pcl::FieldComparison<PointNormalFace> ("z", pcl::ComparisonOps::LT, co_max[2])));
-    // build the filter
-    pcl::ConditionalRemoval<PointNormalFace> condrem;
-    condrem.setCondition (range_cond);
-    condrem.setInputCloud (cloud);
-    //condrem.setKeepOrganized(true);
-    // apply filter
-    condrem.filter (*cloud_filtered_co);
-    std::cerr << "PointCloud after cut-off filtering: " << cloud_filtered_co->width * cloud_filtered_co->height << \
-    " data points." << std::endl;
-    end_local = std::chrono::steady_clock::now();
-    std::cerr << "The cut-off filtering process took: " 
-    << std::chrono::duration_cast<std::chrono::seconds>(end_local - start_local).count() 
-    << " sec" << std::endl << std::endl;
+    cutOffFilter(cloud, cloud_filtered_co);
   }
   else cloud_filtered_co = cloud;
   
 
   if(vg_params.size() == 3) {
-    start_local = std::chrono::steady_clock::now();
-    std::cerr << "Voxel Grid Filtering..." << std::endl;
-    pcl::VoxelGrid<PointNormalFace> vg;
-    vg.setInputCloud (cloud_filtered_co);
-    vg.setLeafSize (vg_params[0], vg_params[1], vg_params[2]);
-    vg.filter (*cloud_filtered_vg);
-    std::cerr << "PointCloud after voxel grid filtering: " << cloud_filtered_vg->width * cloud_filtered_vg->height << \
-    " data points." << std::endl;
-    end_local = std::chrono::steady_clock::now();
-    std::cerr << "The voxel grid filtering process took: " 
-    << std::chrono::duration_cast<std::chrono::seconds>(end_local - start_local).count() 
-    << " sec"<< std::endl << std::endl;  
+    voxelGridFilter(cloud_filtered_co, cloud_filtered_vg);
   }
   else cloud_filtered_vg = cloud_filtered_co;
 
 
   // // Create the filtering object
   if(sor_params.size() == 2) {
-    start_local = std::chrono::steady_clock::now();
-    std::cerr << "Statistical Outlier Removal Filtering..." << std::endl;
-    pcl::StatisticalOutlierRemoval<PointNormalFace> sor;
-    sor.setInputCloud (cloud_filtered_vg);
-    sor.setMeanK (sor_params[0]);
-    sor.setStddevMulThresh (sor_params[1]);
-    sor.filter (*cloud_filtered_sor);
-    std::cerr << "PointCloud after statistical filtering: " << cloud_filtered_sor->width * cloud_filtered_sor->height << \
-    " data points." << std::endl;
-    end_local = std::chrono::steady_clock::now();
-    std::cerr << "The statistical outlier removal process took: " 
-    << std::chrono::duration_cast<std::chrono::seconds>(end_local - start_local).count() 
-    << " sec"<< std::endl << std::endl;
+    statisticalOutlierRemovalFilter(cloud_filtered_vg, cloud_filtered_sor);
   }
   else cloud_filtered_sor = cloud_filtered_vg;
 
   if(ne_param != 0) {
-    start_local = std::chrono::steady_clock::now();
-    std::cerr << "Normal Estimation..." << std::endl;
-    pcl::search::KdTree<PointNormalFace>::Ptr tree (new pcl::search::KdTree<PointNormalFace> ());
-    pcl::NormalEstimationOMP<PointNormalFace, pcl::Normal> ne;
-    ne.setInputCloud(cloud_filtered_sor);
-    ne.setSearchSurface(cloud_filtered_co);
-    ne.setSearchMethod(tree);
-    ne.setViewPoint(0, 0, 0);
-    ne.setRadiusSearch (ne_param);
-    ne.compute (*normals);
-    pcl::concatenateFields(*cloud_filtered_sor, *normals, *cloud_normals);
-    end_local = std::chrono::steady_clock::now();
-    std::cerr << "The normal estimation process took: " 
-    << std::chrono::duration_cast<std::chrono::seconds>(end_local - start_local).count() 
-    << " sec"<< std::endl << std::endl;
+    normalEstimation(cloud_filtered_sor, cloud_normals, cloud_filtered_co);
   }
 
 
@@ -223,4 +213,91 @@ main (int argc, char** argv)
   << " sec"<< std::endl;
 
   return (0);
+}
+
+
+void cutOffFilter(pcl::PointCloud<PointNormalFace>::Ptr& input, pcl::PointCloud<PointNormalFace>::Ptr& output)
+{
+  auto start = std::chrono::steady_clock::now();
+  std::cerr << "Cut-off Filtering..." << std::endl;
+  pcl::ConditionAnd<PointNormalFace>::Ptr range_cond (new
+    pcl::ConditionAnd<PointNormalFace> ());
+  range_cond->addComparison (pcl::FieldComparison<PointNormalFace>::ConstPtr (new
+    pcl::FieldComparison<PointNormalFace> ("x", pcl::ComparisonOps::GT, co_min[0])));
+  range_cond->addComparison (pcl::FieldComparison<PointNormalFace>::ConstPtr (new
+    pcl::FieldComparison<PointNormalFace> ("x", pcl::ComparisonOps::LT, co_max[0])));
+  range_cond->addComparison (pcl::FieldComparison<PointNormalFace>::ConstPtr (new
+    pcl::FieldComparison<PointNormalFace> ("y", pcl::ComparisonOps::GT, co_min[1])));
+  range_cond->addComparison (pcl::FieldComparison<PointNormalFace>::ConstPtr (new
+    pcl::FieldComparison<PointNormalFace> ("y", pcl::ComparisonOps::LT, co_max[1])));
+  range_cond->addComparison (pcl::FieldComparison<PointNormalFace>::ConstPtr (new
+    pcl::FieldComparison<PointNormalFace> ("z", pcl::ComparisonOps::GT, co_min[2])));
+  range_cond->addComparison (pcl::FieldComparison<PointNormalFace>::ConstPtr (new
+    pcl::FieldComparison<PointNormalFace> ("z", pcl::ComparisonOps::LT, co_max[2])));
+  // build the filter
+  pcl::ConditionalRemoval<PointNormalFace> condrem;
+  condrem.setCondition (range_cond);
+  condrem.setInputCloud (input);
+  //condrem.setKeepOrganized(true);
+  // apply filter
+  condrem.filter (*output);
+  std::cerr << "PointCloud after cut-off filtering: " << output->width * output->height << \
+  " data points." << std::endl;
+  auto end = std::chrono::steady_clock::now();
+  std::cerr << "The cut-off filtering process took: " 
+  << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() 
+  << " sec" << std::endl << std::endl;
+}
+
+void voxelGridFilter(pcl::PointCloud<PointNormalFace>::Ptr& input, pcl::PointCloud<PointNormalFace>::Ptr& output)
+{   
+  auto start = std::chrono::steady_clock::now();
+  std::cerr << "Voxel Grid Filtering..." << std::endl;
+  pcl::VoxelGrid<PointNormalFace> vg;
+  vg.setInputCloud (input);
+  vg.setLeafSize (vg_params[0], vg_params[1], vg_params[2]);
+  vg.filter (*output);
+  std::cerr << "PointCloud after voxel grid filtering: " << output->width * output->height << \
+  " data points." << std::endl;
+  auto end = std::chrono::steady_clock::now();
+  std::cerr << "The voxel grid filtering process took: " 
+  << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() 
+  << " sec"<< std::endl << std::endl;
+}
+
+void statisticalOutlierRemovalFilter(pcl::PointCloud<PointNormalFace>::Ptr& input, pcl::PointCloud<PointNormalFace>::Ptr& output)
+{
+  auto start = std::chrono::steady_clock::now();
+  std::cerr << "Statistical Outlier Removal Filtering..." << std::endl;
+  pcl::StatisticalOutlierRemoval<PointNormalFace> sor;
+  sor.setInputCloud (input);
+  sor.setMeanK (sor_params[0]);
+  sor.setStddevMulThresh (sor_params[1]);
+  sor.filter (*output);
+  std::cerr << "PointCloud after statistical filtering: " << output->width * output->height << \
+  " data points." << std::endl;
+  auto end = std::chrono::steady_clock::now();
+  std::cerr << "The statistical outlier removal process took: " 
+  << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() 
+  << " sec"<< std::endl << std::endl;
+}
+
+void normalEstimation(pcl::PointCloud<PointNormalFace>::Ptr& input, pcl::PointCloud<PointNormalFace>::Ptr& output, pcl::PointCloud<PointNormalFace>::Ptr& search)
+{
+  pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
+  auto start = std::chrono::steady_clock::now();
+  std::cerr << "Normal Estimation..." << std::endl;
+  pcl::search::KdTree<PointNormalFace>::Ptr tree (new pcl::search::KdTree<PointNormalFace> ());
+  pcl::NormalEstimationOMP<PointNormalFace, pcl::Normal> ne;
+  ne.setInputCloud(input);
+  ne.setSearchSurface(search);
+  ne.setSearchMethod(tree);
+  ne.setViewPoint(0, 0, 0);
+  ne.setRadiusSearch (ne_param);
+  ne.compute (*normals);
+  pcl::concatenateFields(*input, *normals, *output);
+  auto end = std::chrono::steady_clock::now();
+  std::cerr << "The normal estimation process took: " 
+  << std::chrono::duration_cast<std::chrono::seconds>(end - start).count() 
+  << " sec"<< std::endl << std::endl;
 }

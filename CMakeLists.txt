@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 
+set (CMAKE_CXX_STANDARD 14)
+
 project(large_point_cloud_preprocessing)
 
 find_package(PCL 1.10 REQUIRED)
