@@ -10,10 +10,11 @@
 #include <pcl/console/parse.h>
 
 #include "point_types/point_types.h"
-#include "filters.h"
-#include "normal_estimation.h"
+#include "preprocessing/filters.h"
+#include "preprocessing/normal_estimation.h"
+#include "preprocessing/normalization.h"
 
-//filters
+//filters params (co = cut-off, vg = voxel-grid, sor = statistical outlier removal)
 std::vector<double> co_min;
 std::vector<double> co_max;
 
@@ -22,8 +23,14 @@ std::vector<double> vg_params;
 std::vector<double> sor_params;
 
 //normal estimation params
-double ne_param;
-void normalEstimation(pcl::PCLPointCloud2::Ptr& input, pcl::PCLPointCloud2::Ptr& output, pcl::PCLPointCloud2::Ptr& search);
+double neomp_param;
+
+//normalization
+double reescale_param;
+bool centralize_param;
+bool align_param;
+double noise_add_param;
+double cube_reescale_param;
 
 using namespace pcl;
 using namespace pcl::io;
@@ -48,7 +55,7 @@ main (int argc, char** argv)
   auto start = std::chrono::steady_clock::now();
    
   pcl::PCLPointCloud2::Ptr cloud(new pcl::PCLPointCloud2), out_filtered(new pcl::PCLPointCloud2), normals(new pcl::PCLPointCloud2),
-                           out_normals(new pcl::PCLPointCloud2);
+                           out_normals(new pcl::PCLPointCloud2), out_normalized(new pcl::PCLPointCloud2);
   std::string filename = argv[1];
   loadPCD(filename, *cloud);
 
@@ -63,32 +70,32 @@ main (int argc, char** argv)
 
   PointCloud<PointXYZRGBNormalFace>::Ptr before_vg;
   as::Filters<PointXYZRGBNormalFace> filters(co_min, co_max, vg_params, sor_params);
-  filters.setInputCloud(cloud);
-  filters.filter(out_filtered, before_vg);
-  as::NormalEstimation<PointXYZRGBNormalFace> ne(ne_param);
-  ne.setInputCloud(out_filtered);
-  ne.setSearchSurface(before_vg);
+  filters.filter(cloud, out_filtered, before_vg);
+  
+  as::NormalEstimation<PointXYZRGBNormalFace> ne(neomp_param);
   bool save_normal = false;
-  if(ne.compute(normals)) {
+  if(ne.compute(out_filtered, normals, before_vg)) {
     pcl::concatenateFields(*out_filtered, *normals, *out_normals);
     save_normal = true;
   }
   else 
     out_normals = out_filtered;
+  
+  as::Normalization<PointXYZRGBNormalFace> normalization(reescale_param, centralize_param, align_param, cube_reescale_param);
+  normalization.normalize(out_normals, out_normalized);
 
-  for(int i = 0; i < out_normals->fields.size(); ) {
-    if(std::find(fields.begin(), fields.end(), out_normals->fields[i].name) != fields.end() || (save_normal &&
-      (out_normals->fields[i].name == "normal_x" || out_normals->fields[i].name == "normal_y" || out_normals->fields[i].name == "normal_z" || out_normals->fields[i].name == "curvature"))) {
-      
+  for(int i = 0; i < out_normalized->fields.size(); ) {
+    if(std::find(fields.begin(), fields.end(), out_normalized->fields[i].name) != fields.end() || (save_normal && (out_normalized->fields[i].name == "normal_x" || out_normalized->fields[i].name == "normal_y"
+                 || out_normalized->fields[i].name == "normal_z" || out_normalized->fields[i].name == "curvature"))) {
       i++;
     }
     else {
-      out_normals->fields.erase(out_normals->fields.begin() + i);
+      out_normalized->fields.erase(out_normalized->fields.begin() + i);
     }
   }
 
   std::string out_filename = argv[2];
-  savePCD(out_filename, *out_normals); 
+  savePCD(out_filename, *out_normalized); 
 
   auto end = std::chrono::steady_clock::now();
   print_info("\nThe overall process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
@@ -127,14 +134,24 @@ readParameters(int argc, char** argv)
       if(sor_params.size() != 0) print_error ("Statistical outlier removal maximum must be specified with 2 numbers (%lu given).\n", sor_params.size());
   }
 
-  parse_argument (argc, argv, "--ne", ne_param);   
+  parse_argument (argc, argv, "--ne", neomp_param);
+
+  parse_argument (argc, argv, "--reescale_factor", reescale_param);
+  
+  parse_argument (argc, argv, "--centralize", centralize_param);
+
+  parse_argument (argc, argv, "--align", align_param);
+
+  parse_argument (argc, argv, "--noise_limit", noise_add_param);
+
+  parse_argument (argc, argv, "--cube_rescale_factor", cube_reescale_param);
 }
 
 void 
 loadPCD(std::string filename, pcl::PCLPointCloud2& cloud)
 {
   auto start_local = std::chrono::steady_clock::now();
-  print_info ("Reading Point Cloud...\n");
+  print_info ("\n\nReading Point Cloud...\n");
   loadPCDFile(filename, cloud);
   print_info ("Available dimensions: "); print_value ("%s\n", pcl::getFieldsList(cloud).c_str ());
   print_info("PointCloud before filtering: "); print_value("%d data points\n", cloud.width * cloud.height);
@@ -145,7 +162,7 @@ loadPCD(std::string filename, pcl::PCLPointCloud2& cloud)
 void
 savePCD(std::string filename, pcl::PCLPointCloud2& cloud) {
   auto start_local = std::chrono::steady_clock::now();
-  print_info("\nWriting Point Cloud...\n");
+  print_info("\n\nWriting Point Cloud...\n");
   savePCDFile(filename, cloud);
   auto end_local = std::chrono::steady_clock::now();
   print_info("The writing process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end_local - start_local).count());
