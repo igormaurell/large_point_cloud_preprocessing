@@ -166,16 +166,21 @@ savePCD(std::string filename, pcl::PCLPointCloud2& cloud) {
   savePCDFile(filename, cloud);
   auto end_local = std::chrono::steady_clock::now();
   print_info("The writing process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end_local - start_local).count());
-}
+} 
 
 void
 printHelp (int, char **argv)
 {
   print_error ("Syntax is: %s input.pcd output.pcd <options>\n", argv[0]);
   print_info ("  where options are:\n");
-  print_info ("                     --co_min x, y, z      = minimum x, y and z values to use\n");
-  print_info ("                     --co_max x, y, z      = maximum x, y and z values to use\n");
-  print_info ("                     --vg x, y, z | x      = leaf size for voxel grid for x, y and z cordinates, if just x is passed, it is used for all cordinates\n");
-  print_info ("                     --sor mean, std       = mean and std for a statistical outlier removal filter\n");
-  print_info ("                     --ne radius       = radius of the sphere used to estimate the nomal of each point\n");
+  print_info ("                 --co_min x, y, z                = minimum x, y and z values to use\n");
+  print_info ("                 --co_max x, y, z                = maximum x, y and z values to use\n");
+  print_info ("                 --vg x, y, z | x                = leaf size for voxel grid for x, y and z cordinates, if just x is passed, it is used for all cordinates\n");
+  print_info ("                 --sor mean, std                 = mean and std for a statistical outlier removal filter\n");
+  print_info ("                 --ne radius                     = radius of the sphere used to estimate the nomal of each point\n");
+  print_info ("                 --reescale_factor factor        = factor that will reescale all the points (change measurament unity)\n");
+  print_info ("                 --centralize                    = use it to put the origin of the pointcloud at the geometric center of the points\n");
+  print_info ("                 --align                         = use it to aling the x axis of the coordinate system with the axis of minor variation on point cloud\n");
+  print_info ("                 --noise_limit limit             = limit of a random uniform noise applied at the normal direction for each point\n");
+  print_info ("                 --cube_reescale_factor factor   = make all the point cloud lies in a cube of edge size equal factor\n");
 }

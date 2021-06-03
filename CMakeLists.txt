@@ -12,5 +12,5 @@ include_directories(include)
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
-add_executable (large_point_cloud_preprocessing large_point_cloud_preprocessing.cpp include/point_types/point_types.h include/preprocessing/filters.h include/preprocessing/normal_estimation.h include/preprocessing/normalization.h)
+add_executable (large_point_cloud_preprocessing main.cpp include/point_types/point_types.h include/preprocessing/filters.h include/preprocessing/normal_estimation.h include/preprocessing/normalization.h)
 target_link_libraries (large_point_cloud_preprocessing ${PCL_LIBRARIES})
