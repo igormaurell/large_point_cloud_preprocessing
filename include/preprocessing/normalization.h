@@ -29,14 +29,14 @@ namespace as
                       align_param(_align_param), cube_reescale_param(_cube_reescale_param) { }
 
       
-        bool reescale(typename pcl::PointCloud<PointT>::Ptr& input, typename pcl::PointCloud<PointT>::Ptr& output)
+        bool reescale(typename pcl::PointCloud<PointT>::Ptr& cloud)
         {
             if(reescale_param != 1.f && reescale_param != 0.f) {
                 auto start = std::chrono::steady_clock::now();
                 print_info("\nReescale...\n");
                 Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
                 addReescaleTransform(transform);
-                transformPointCloudWithNormals(*input, *output, transform);
+                transformPointCloudWithNormals(*cloud, *cloud, transform);
                 auto end = std::chrono::steady_clock::now();
                 print_info("The reescale process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
                 return true;
@@ -51,14 +51,14 @@ namespace as
             }
         }
 
-        bool centralize(typename pcl::PointCloud<PointT>::Ptr& input, typename pcl::PointCloud<PointT>::Ptr& output)
+        bool centralize(typename pcl::PointCloud<PointT>::Ptr& cloud)
         {
             if(centralize_param) {
                 auto start = std::chrono::steady_clock::now();
                 print_info("\nCentralize...\n");
                 Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-                addCentralizeTransform(input, transform);
-                transformPointCloudWithNormals(*input, *output, transform);
+                addCentralizeTransform(cloud, transform);
+                transformPointCloudWithNormals(*cloud, *cloud, transform);
                 auto end = std::chrono::steady_clock::now();
                 print_info("The Centralize process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
                 return true;
@@ -69,14 +69,14 @@ namespace as
             }
         }
 
-        bool align(typename pcl::PointCloud<PointT>::Ptr& input, typename pcl::PointCloud<PointT>::Ptr& output)
+        bool align(typename pcl::PointCloud<PointT>::Ptr& cloud)
         {
             if(align_param) {
                 auto start = std::chrono::steady_clock::now();
                 print_info("\nAlign...\n");
                 Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-                addAlignTransform(input, transform);
-                transformPointCloudWithNormals(*input, *output, transform);
+                addAlignTransform(cloud, transform);
+                transformPointCloudWithNormals(*cloud, *cloud, transform);
                 auto end = std::chrono::steady_clock::now();
                 print_info("The Align process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
                 return true;
@@ -87,20 +87,19 @@ namespace as
             }
         }
 
-        bool noiseAdd(typename pcl::PointCloud<PointT>::Ptr& input, typename pcl::PointCloud<PointT>::Ptr& output)
+        bool noiseAdd(typename pcl::PointCloud<PointT>::Ptr& cloud)
         {
             if(noise_add_param != 0.f) {
                 auto start = std::chrono::steady_clock::now();
                 print_info("\nNoise Add...\n");
                 
                 //it has to work for organized point cloud too
-                std::vector<double> uniform_distribution(input->width * input->height);
+                std::vector<double> uniform_distribution(cloud->width * cloud->height);
                 std::default_random_engine generator{std::random_device{}()};
                 std::uniform_real_distribution<double>  distr(-noise_add_param, noise_add_param);
                 std::generate(std::begin(uniform_distribution), std::end(uniform_distribution), [&]{ return distr(generator); });
 
-                *output = pcl::PointCloud<PointT> (*input);
-                std::vector<PointT, Eigen::aligned_allocator<PointT> > points = output->points;
+                std::vector<PointT, Eigen::aligned_allocator<PointT> > points = cloud->points;
                 for(int i = 0; i < uniform_distribution.size(); i++) {
                     Eigen::Vector3f xyz; xyz << points[i].x, points[i].y, points[i].z;
                     //float* n = points[i].normal;
@@ -124,14 +123,14 @@ namespace as
             }
         }
 
-        bool cubeReescale(typename pcl::PointCloud<PointT>::Ptr& input, typename pcl::PointCloud<PointT>::Ptr& output)
+        bool cubeReescale(typename pcl::PointCloud<PointT>::Ptr& cloud)
         {
             if(cube_reescale_param) {
                 auto start = std::chrono::steady_clock::now();
                 print_info("\nCube Reescale...\n");
                 Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-                addCubeReescaleTransform(input, transform);
-                transformPointCloudWithNormals(*input, *output, transform);
+                addCubeReescaleTransform(cloud, transform);
+                transformPointCloudWithNormals(*cloud, *cloud, transform);
                 auto end = std::chrono::steady_clock::now();
                 print_info("The Cube Reescale process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
                 return true;
@@ -142,12 +141,8 @@ namespace as
             }
         }
 
-        void normalize(typename pcl::PointCloud<PointT>::Ptr& input, typename pcl::PointCloud<PointT>::Ptr& output)
-        {
-            typename pcl::PointCloud<PointT>::Ptr cloud_transformed(new pcl::PointCloud<PointT>);
-            typename pcl::PointCloud<PointT>::Ptr cloud_noise(new pcl::PointCloud<PointT>);
-            typename pcl::PointCloud<PointT>::Ptr cloud_cube(new pcl::PointCloud<PointT>);
-            
+        void normalize(typename pcl::PointCloud<PointT>::Ptr& cloud)
+        {      
             print_info("\n\nNormalizing Point Cloud...");
             auto start = std::chrono::steady_clock::now();
             std::string methods = "";
@@ -178,14 +173,14 @@ namespace as
             
             std::string print_after = "";
             if(centralize_param && align_param) {
-                addCentralizeAlignTransform(input, transform);
+                addCentralizeAlignTransform(cloud, transform);
             }
             else if(centralize_param) {
-                addCentralizeTransform(input, transform);
+                addCentralizeTransform(cloud, transform);
                 print_after += "\nAlign was not parameterized\n";
             }
             else if(align_param) {
-                addAlignTransform(input, transform); 
+                addAlignTransform(cloud, transform); 
                 print_after += "\nCentralized was not parameterized\n";
             }
             else {
@@ -195,42 +190,36 @@ namespace as
 
             bool cube_done = false;
             if(noise_add_param == 0.f && cube_reescale_param != 0.f) {
-                addCubeReescaleTransform(input, transform);
+                addCubeReescaleTransform(cloud, transform);
                 cube_done = true;
             }
 
-            transformPointCloudWithNormals(*input, *cloud_transformed, transform);
+            transformPointCloudWithNormals(*cloud, *cloud, transform);
+
+            std::cout<<print_after;
 
             auto end = std::chrono::steady_clock::now();
             if(methods.size() > 0) {
                 print_info("The %s process took: ", methods.c_str()); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
             }
             
-            if(!noiseAdd(cloud_transformed, cloud_noise))
-                cloud_noise = cloud_transformed;
-            
+            noiseAdd(cloud);
 
             if(!cube_done) {
-                if(!cubeReescale(cloud_noise, cloud_cube))
-                    cloud_cube = cloud_noise;
-            }
-            else {
-                cloud_cube = cloud_noise;
+                cubeReescale(cloud);
             }
 
-            output = cloud_cube;
             print_info("Normalized.\n");
         }
 
-        void normalize(pcl::PCLPointCloud2::Ptr& input, pcl::PCLPointCloud2::Ptr& output)
+        void normalize(pcl::PCLPointCloud2::Ptr& cloud)
         {
-            typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
-            typename pcl::PointCloud<PointT>::Ptr out(new pcl::PointCloud<PointT>);
-            pcl::fromPCLPointCloud2(*input, *cloud);      
-            normalize(cloud, out);
-            pcl::toPCLPointCloud2(*out, *output);
+            typename pcl::PointCloud<PointT>::Ptr cloud_pc(new pcl::PointCloud<PointT>);
+            pcl::fromPCLPointCloud2(*cloud, *cloud_pc);
+            normalize(cloud);
+            pcl::toPCLPointCloud2(*cloud, *cloud_pc);
         }
-       
+
         void setReescaleParam(double _reescale_param) {
             reescale_param = _reescale_param;
         }

@@ -54,10 +54,15 @@ main (int argc, char** argv)
   }
   auto start = std::chrono::steady_clock::now();
    
-  pcl::PCLPointCloud2::Ptr cloud(new pcl::PCLPointCloud2), out_filtered(new pcl::PCLPointCloud2), normals(new pcl::PCLPointCloud2),
-                           out_normals(new pcl::PCLPointCloud2), out_normalized(new pcl::PCLPointCloud2);
+  pcl::PCLPointCloud2::Ptr cloud_pc2(new pcl::PCLPointCloud2);
+  pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+  PointCloud<PointXYZRGBNormalFace>::Ptr cloud(new PointCloud<PointXYZRGBNormalFace>), before_vg(new PointCloud<PointXYZRGBNormalFace>);
+
   std::string filename = argv[1];
-  loadPCD(filename, *cloud);
+  loadPCD(filename, *cloud_pc2);
+
+  pcl::fromPCLPointCloud2(*cloud_pc2, *cloud);
+  cloud_pc2.reset(new pcl::PCLPointCloud2);
 
   std::string s_fields(pcl::getFieldsList(*cloud)), w;
   std::stringstream ss(s_fields);
@@ -68,34 +73,39 @@ main (int argc, char** argv)
 
   readParameters(argc, argv);
 
-  PointCloud<PointXYZRGBNormalFace>::Ptr before_vg;
   as::Filters<PointXYZRGBNormalFace> filters(co_min, co_max, vg_params, sor_params);
-  filters.filter(cloud, out_filtered, before_vg);
-  
+  filters.filter(cloud, before_vg);
+
   as::NormalEstimation<PointXYZRGBNormalFace> ne(neomp_param);
   bool save_normal = false;
-  if(ne.compute(out_filtered, normals, before_vg)) {
-    pcl::concatenateFields(*out_filtered, *normals, *out_normals);
+  if(ne.compute(cloud, normals, before_vg)) {
+    if(cloud != before_vg) before_vg.reset(new pcl::PointCloud<PointXYZRGBNormalFace>);
+    pcl::concatenateFields(*cloud, *normals, *cloud);
+    normals.reset(new pcl::PointCloud<pcl::Normal>);
     save_normal = true;
   }
-  else 
-    out_normals = out_filtered;
+  else {
+    if(cloud != before_vg) before_vg.reset(new PointCloud<PointXYZRGBNormalFace>);
+  }
   
   as::Normalization<PointXYZRGBNormalFace> normalization(reescale_param, centralize_param, align_param, cube_reescale_param);
-  normalization.normalize(out_normals, out_normalized);
+  normalization.normalize(cloud);
 
-  for(int i = 0; i < out_normalized->fields.size(); ) {
-    if(std::find(fields.begin(), fields.end(), out_normalized->fields[i].name) != fields.end() || (save_normal && (out_normalized->fields[i].name == "normal_x" || out_normalized->fields[i].name == "normal_y"
-                 || out_normalized->fields[i].name == "normal_z" || out_normalized->fields[i].name == "curvature"))) {
+  pcl::toPCLPointCloud2(*cloud, *cloud_pc2);
+  cloud.reset(new pcl::PointCloud<PointXYZRGBNormalFace>);
+
+  for(int i = 0; i < cloud_pc2->fields.size(); ) {
+    if(std::find(fields.begin(), fields.end(), cloud_pc2->fields[i].name) != fields.end() || (save_normal && (cloud_pc2->fields[i].name == "normal_x" || cloud_pc2->fields[i].name == "normal_y"
+                 || cloud_pc2->fields[i].name == "normal_z" || cloud_pc2->fields[i].name == "curvature"))) {
       i++;
     }
     else {
-      out_normalized->fields.erase(out_normalized->fields.begin() + i);
+      cloud_pc2->fields.erase(cloud_pc2->fields.begin() + i);
     }
   }
 
   std::string out_filename = argv[2];
-  savePCD(out_filename, *out_normalized); 
+  savePCD(out_filename, *cloud_pc2); 
 
   auto end = std::chrono::steady_clock::now();
   print_info("\nThe overall process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
@@ -151,7 +161,7 @@ void
 loadPCD(std::string filename, pcl::PCLPointCloud2& cloud)
 {
   auto start_local = std::chrono::steady_clock::now();
-  print_info ("\n\nReading Point Cloud...\n");
+  print_info ("\nReading Point Cloud...\n");
   loadPCDFile(filename, cloud);
   print_info ("Available dimensions: "); print_value ("%s\n", pcl::getFieldsList(cloud).c_str ());
   print_info("PointCloud before filtering: "); print_value("%d data points\n", cloud.width * cloud.height);
@@ -163,7 +173,7 @@ void
 savePCD(std::string filename, pcl::PCLPointCloud2& cloud) {
   auto start_local = std::chrono::steady_clock::now();
   print_info("\n\nWriting Point Cloud...\n");
-  savePCDFile(filename, cloud);
+  savePCDFile(filename, cloud, Eigen::Vector4f::Zero(), Eigen::Quaternionf::Identity(), true);
   auto end_local = std::chrono::steady_clock::now();
   print_info("The writing process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end_local - start_local).count());
 } 

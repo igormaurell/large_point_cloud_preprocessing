@@ -26,7 +26,7 @@ namespace as
                 std::vector<double> _sor_params) : co_min(_co_min), co_max(_co_max),
                                                 vg_params(_vg_params), sor_params(_sor_params) {}
 
-        bool cutOffFilter(typename pcl::PointCloud<PointT>::Ptr& input, typename pcl::PointCloud<PointT>::Ptr& output)
+        bool cutOffFilter(typename pcl::PointCloud<PointT>::Ptr& cloud)
         {
             if(co_min.size() == 3 || co_max.size() == 3) {
                 std::vector<double> lco_min, lco_max;
@@ -55,11 +55,11 @@ namespace as
                 // build the filter
                 typename pcl::ConditionalRemoval<PointT> condrem;
                 condrem.setCondition (range_cond);
-                condrem.setInputCloud (input);
+                condrem.setInputCloud (cloud);
                 //condrem.setKeepOrganized(true);
                 // apply filter
-                condrem.filter (*output);
-                print_info("PointCloud after cut-off filtering: "); print_value("%d data points\n", output->width * output->height);
+                condrem.filter (*cloud);
+                print_info("PointCloud after cut-off filtering: "); print_value("%d data points\n", cloud->width * cloud->height);
                 auto end = std::chrono::steady_clock::now();
                 print_info("The cut-off filtering process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
                 return true;
@@ -71,16 +71,16 @@ namespace as
             
         }
 
-        bool voxelGridFilter(typename pcl::PointCloud<PointT>::Ptr& input, typename pcl::PointCloud<PointT>::Ptr& output)
+        bool voxelGridFilter(typename pcl::PointCloud<PointT>::Ptr& cloud)
         {   
             if(vg_params.size() == 3) {
                 auto start = std::chrono::steady_clock::now();
                 print_info("\nVoxel Grid Filtering...\n");
                 pcl::VoxelGrid< PointT > vg;
-                vg.setInputCloud (input);
+                vg.setInputCloud (cloud);
                 vg.setLeafSize (vg_params[0], vg_params[1], vg_params[2]);
-                vg.filter (*output);
-                print_info("PointCloud after voxel grid filtering: "); print_value("%d data points\n", output->width * output->height);
+                vg.filter (*cloud);
+                print_info("PointCloud after voxel grid filtering: "); print_value("%d data points\n", cloud->width * cloud->height);
                 auto end = std::chrono::steady_clock::now();
                 print_info("The voxel grid filtering process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
                 return true;
@@ -92,17 +92,17 @@ namespace as
             
         }
 
-        bool statisticalOutlierRemovalFilter(typename pcl::PointCloud<PointT>::Ptr& input, typename pcl::PointCloud<PointT>::Ptr& output)
+        bool statisticalOutlierRemovalFilter(typename pcl::PointCloud<PointT>::Ptr& cloud)
         {
             if(sor_params.size() == 2) {
                 auto start = std::chrono::steady_clock::now();
                 print_info("\nStatistical Outlier Removal Filtering...\n");
                 pcl::StatisticalOutlierRemoval<PointT> sor;
-                sor.setInputCloud (input);
+                sor.setInputCloud (cloud);
                 sor.setMeanK (sor_params[0]);
                 sor.setStddevMulThresh (sor_params[1]);
-                sor.filter (*output);
-                print_info("PointCloud after statistical filtering: "); print_value("%d data points\n", output->width * output->height);
+                sor.filter (*cloud);
+                print_info("PointCloud after statistical filtering: "); print_value("%d data points\n", cloud->width * cloud->height);
                 auto end = std::chrono::steady_clock::now();
                 print_info("The statistical outlier removal process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
                 return true;
@@ -114,35 +114,26 @@ namespace as
 
         }
 
-        void filter(typename pcl::PointCloud<PointT>::Ptr& input, typename pcl::PointCloud<PointT>::Ptr& output, typename pcl::PointCloud<PointT>::Ptr& before_vg)
-        {
-            typename pcl::PointCloud<PointT>::Ptr cloud_filtered_co(new pcl::PointCloud<PointT>);
-            typename pcl::PointCloud<PointT>::Ptr cloud_filtered_vg(new pcl::PointCloud<PointT>);
-            typename pcl::PointCloud<PointT>::Ptr cloud_filtered_sor(new pcl::PointCloud<PointT>);
-            
+        void filter(typename pcl::PointCloud<PointT>::Ptr& cloud, typename pcl::PointCloud<PointT>::Ptr& before_vg)
+        {   
             print_info("\n\nFiltering Point Cloud...");
-            if(!cutOffFilter(input, cloud_filtered_co))
-                cloud_filtered_co = input;
-            
-            before_vg = cloud_filtered_co;
+            cutOffFilter(cloud);
 
-            if(!voxelGridFilter(cloud_filtered_co, cloud_filtered_vg))
-                cloud_filtered_vg = cloud_filtered_co;
+            pcl::copyPointCloud(*cloud, *before_vg);
 
-            if(!statisticalOutlierRemovalFilter(cloud_filtered_vg, cloud_filtered_sor))
-                cloud_filtered_sor = cloud_filtered_vg;
+            voxelGridFilter(cloud);
 
-            output = cloud_filtered_sor;
+            statisticalOutlierRemovalFilter(cloud);
+
             print_info("Filtered.\n");
         }
 
-        void filter(pcl::PCLPointCloud2::Ptr& input, pcl::PCLPointCloud2::Ptr& output, typename pcl::PointCloud<PointT>::Ptr& before_vg)
+        void filter(pcl::PCLPointCloud2::Ptr& cloud, typename pcl::PointCloud<PointT>::Ptr& before_vg)
         {
-            typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
-            pcl::fromPCLPointCloud2(*input, *cloud);
-            typename pcl::PointCloud<PointT>::Ptr out(new pcl::PointCloud<PointT>);
-            filter(cloud, out, before_vg);
-            pcl::toPCLPointCloud2(*out, *output);
+            typename pcl::PointCloud<PointT>::Ptr cloud_pc(new pcl::PointCloud<PointT>);
+            pcl::fromPCLPointCloud2(*cloud, *cloud_pc);
+            filter(cloud_pc, before_vg);
+            pcl::toPCLPointCloud2(*cloud_pc, *cloud);
         }
 
         void setCutOffParams(std::vector<double>& _co_min, std::vector<double>& _co_max){

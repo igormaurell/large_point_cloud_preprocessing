@@ -23,7 +23,7 @@ namespace as
 
         NormalEstimation(double _neomp_param) : neomp_param(_neomp_param) { }
 
-        bool normalEstimationOMP(typename pcl::PointCloud<PointT>::Ptr& input, pcl::PointCloud<Normal>::Ptr& output,
+        bool normalEstimationOMP(typename pcl::PointCloud<PointT>::Ptr& cloud, pcl::PointCloud<Normal>::Ptr& normals,
                                  typename pcl::PointCloud<PointT>::Ptr& search)
         {   
             if(neomp_param != 0) {
@@ -31,12 +31,12 @@ namespace as
                 print_info("\nNormal Estimation...\n");
                 typename pcl::search::KdTree<PointT>::Ptr tree (new pcl::search::KdTree<PointT>());
                 typename pcl::NormalEstimationOMP<PointT, pcl::Normal> ne;
-                ne.setInputCloud(input);
+                ne.setInputCloud(cloud);
                 ne.setSearchSurface(search);
                 ne.setSearchMethod(tree);
                 ne.setViewPoint(0, 0, 0);
                 ne.setRadiusSearch (neomp_param);
-                ne.compute (*output);
+                ne.compute (*normals);
                 auto end = std::chrono::steady_clock::now();
                 print_info("The normal estimation process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
                 return true;
@@ -47,23 +47,21 @@ namespace as
             }
         }
 
-        bool compute(typename pcl::PointCloud<PointT>::Ptr& input, pcl::PointCloud<Normal>::Ptr& output,
+        bool compute(typename pcl::PointCloud<PointT>::Ptr& cloud, pcl::PointCloud<Normal>::Ptr& normals,
                      typename pcl::PointCloud<PointT>::Ptr& search)
         {
             print_info("\n\nEstimating Normal of Point Cloud...");
-            bool result = normalEstimationOMP(input, output, search);
+            bool result = normalEstimationOMP(cloud, normals, search);
             print_info("Normal Estimated...\n");
             return result;
         }
 
-        bool compute(pcl::PCLPointCloud2::Ptr& input, pcl::PCLPointCloud2::Ptr& output,
+        bool compute(pcl::PCLPointCloud2::Ptr& cloud, pcl::PointCloud<Normal>::Ptr& normals,
                      typename pcl::PointCloud<PointT>::Ptr& search)
         {
-            typename pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>);
-            pcl::PointCloud<Normal>::Ptr out(new pcl::PointCloud<Normal>);
-            pcl::fromPCLPointCloud2(*input, *cloud);      
-            if (compute(cloud, out, search)) {
-                pcl::toPCLPointCloud2(*out, *output);
+            typename pcl::PointCloud<PointT>::Ptr cloud_pc(new pcl::PointCloud<PointT>);
+            pcl::fromPCLPointCloud2(*cloud, *cloud_pc);      
+            if (compute(cloud, normals, search)) {
                 return true;
             }
             return false;
