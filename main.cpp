@@ -38,7 +38,7 @@ using namespace pcl::console;
 
 void readParameters(int argc, char** argv);
 void loadPCD(std::string filename, pcl::PCLPointCloud2& cloud);
-void savePCD(std::string filename, pcl::PCLPointCloud2& cloud);
+void savePCD(std::string filename, pcl::PointCloud<PointXYZRGBNormalFace>& cloud, std::vector<std::string>& fields);
 void printHelp (int, char **argv);
 
 int
@@ -61,15 +61,15 @@ main (int argc, char** argv)
   std::string filename = argv[1];
   loadPCD(filename, *cloud_pc2);
 
-  pcl::fromPCLPointCloud2(*cloud_pc2, *cloud);
-  cloud_pc2.reset(new pcl::PCLPointCloud2);
-
-  std::string s_fields(pcl::getFieldsList(*cloud)), w;
+  std::string s_fields(pcl::getFieldsList(*cloud_pc2)), w;
   std::stringstream ss(s_fields);
   std::vector<std::string> fields;
   while (ss >> w) {
     fields.push_back(w);
   }
+
+  pcl::fromPCLPointCloud2(*cloud_pc2, *cloud);
+  cloud_pc2.reset(new pcl::PCLPointCloud2);
 
   readParameters(argc, argv);
 
@@ -91,21 +91,20 @@ main (int argc, char** argv)
   as::Normalization<PointXYZRGBNormalFace> normalization(reescale_param, centralize_param, align_param, cube_reescale_param);
   normalization.normalize(cloud);
 
-  pcl::toPCLPointCloud2(*cloud, *cloud_pc2);
-  cloud.reset(new pcl::PointCloud<PointXYZRGBNormalFace>);
-
-  for(int i = 0; i < cloud_pc2->fields.size(); ) {
-    if(std::find(fields.begin(), fields.end(), cloud_pc2->fields[i].name) != fields.end() || (save_normal && (cloud_pc2->fields[i].name == "normal_x" || cloud_pc2->fields[i].name == "normal_y"
-                 || cloud_pc2->fields[i].name == "normal_z" || cloud_pc2->fields[i].name == "curvature"))) {
-      i++;
-    }
-    else {
-      cloud_pc2->fields.erase(cloud_pc2->fields.begin() + i);
-    }
+  if(std::find(fields.begin(), fields.end(), "normal_x") == fields.end() && save_normal) {
+    auto pos = fields.begin();
+    auto r_pos = std::find(fields.begin(), fields.end(), "rgb");
+    auto z_pos = std::find(fields.begin(), fields.end(), "rgb");
+    if(r_pos == fields.end()) pos = r_pos;
+    else if(z_pos == fields.end()) pos = z_pos;
+    fields.insert(pos, "curvature");
+    fields.insert(pos, "normal_z");
+    fields.insert(pos, "normal_y");
+    fields.insert(pos, "normal_x");
   }
 
   std::string out_filename = argv[2];
-  savePCD(out_filename, *cloud_pc2); 
+  savePCD(out_filename, *cloud, fields); 
 
   auto end = std::chrono::steady_clock::now();
   print_info("\nThe overall process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
@@ -170,10 +169,58 @@ loadPCD(std::string filename, pcl::PCLPointCloud2& cloud)
 }
 
 void
-savePCD(std::string filename, pcl::PCLPointCloud2& cloud) {
+savePCD(std::string filename, pcl::PointCloud<PointXYZRGBNormalFace>& cloud, std::vector<std::string>& fields) {
   auto start_local = std::chrono::steady_clock::now();
   print_info("\n\nWriting Point Cloud...\n");
-  savePCDFile(filename, cloud, Eigen::Vector4f::Zero(), Eigen::Quaternionf::Identity(), true);
+  bool has_x = std::find(fields.begin(), fields.end(), "x") == fields.end() ? false : true;
+  bool has_r = std::find(fields.begin(), fields.end(), "rgb") == fields.end() ? false : true;
+  bool has_n = std::find(fields.begin(), fields.end(), "normal_x") == fields.end() ? false : true;
+  bool has_l = std::find(fields.begin(), fields.end(), "label") == fields.end() ? false : true;
+  
+  if(has_l) {
+    if(has_r) {
+      if(has_n) {
+        pcl::PointCloud<PointXYZRGBNormalFace> out; copyPointCloud(cloud, out);
+        savePCDFileBinary(filename, out);
+      }
+      else {
+        pcl::PointCloud<PointXYZRGBFace> out; copyPointCloud(cloud, out);
+        savePCDFileBinary(filename, out);
+      }
+    }
+    else {
+      if(has_n) {
+        pcl::PointCloud<PointNormalFace> out; copyPointCloud(cloud, out);
+        savePCDFileBinary(filename, out);
+      }
+      else {
+        pcl::PointCloud<PointXYZFace> out; copyPointCloud(cloud, out);
+        savePCDFileBinary(filename, out);
+      }
+    }
+  }
+  else{
+    if(has_r) {
+      if(has_n) {
+        pcl::PointCloud<pcl::PointXYZRGBNormal> out; copyPointCloud(cloud, out);
+        savePCDFileBinary(filename, out);
+      }
+      else {
+        pcl::PointCloud<pcl::PointXYZRGB> out; copyPointCloud(cloud, out);
+        savePCDFileBinary(filename, out);
+      }
+    }
+    else {
+      if(has_n) {
+        pcl::PointCloud<pcl::PointNormal> out; copyPointCloud(cloud, out);
+        savePCDFileBinary(filename, out);
+      }
+      else {
+        pcl::PointCloud<pcl::PointXYZ> out; copyPointCloud(cloud, out);
+        savePCDFileBinary(filename, out);
+      }
+    }
+  }
   auto end_local = std::chrono::steady_clock::now();
   print_info("The writing process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end_local - start_local).count());
 } 
