@@ -14,6 +14,8 @@
 #include "preprocessing/normal_estimation.h"
 #include "preprocessing/normalization.h"
 
+typedef PointXYZRGBNormalFace PointT;
+
 //filters params (co = cut-off, vg = voxel-grid, sor = statistical outlier removal)
 std::vector<double> co_min;
 std::vector<double> co_max;
@@ -38,7 +40,7 @@ using namespace pcl::console;
 
 void readParameters(int argc, char** argv);
 void loadPCD(std::string filename, pcl::PCLPointCloud2& cloud);
-void savePCD(std::string filename, pcl::PointCloud<PointXYZRGBNormalFace>& cloud, std::vector<std::string>& fields);
+void savePCD(std::string filename, pcl::PointCloud<PointT>& cloud, std::vector<std::string>& fields);
 void printHelp (int, char **argv);
 
 int
@@ -56,7 +58,7 @@ main (int argc, char** argv)
    
   pcl::PCLPointCloud2::Ptr cloud_pc2(new pcl::PCLPointCloud2);
   pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
-  PointCloud<PointXYZRGBNormalFace>::Ptr cloud(new PointCloud<PointXYZRGBNormalFace>), before_vg(new PointCloud<PointXYZRGBNormalFace>);
+  PointCloud<PointT>::Ptr cloud(new PointCloud<PointT>), before_vg(new PointCloud<PointT>);
 
   std::string filename = argv[1];
   loadPCD(filename, *cloud_pc2);
@@ -73,34 +75,33 @@ main (int argc, char** argv)
 
   readParameters(argc, argv);
 
-  as::Filters<PointXYZRGBNormalFace> filters(co_min, co_max, vg_params, sor_params);
+  as::Filters<PointT> filters(co_min, co_max, vg_params, sor_params);
   filters.filter(cloud, before_vg);
 
-  as::NormalEstimation<PointXYZRGBNormalFace> ne(neomp_param);
+  as::NormalEstimation<PointT> ne(neomp_param);
   bool save_normal = false;
   if(ne.compute(cloud, normals, before_vg)) {
-    if(cloud != before_vg) before_vg.reset(new pcl::PointCloud<PointXYZRGBNormalFace>);
+    if(cloud != before_vg) before_vg.reset(new pcl::PointCloud<PointT>);
     pcl::concatenateFields(*cloud, *normals, *cloud);
     normals.reset(new pcl::PointCloud<pcl::Normal>);
     save_normal = true;
   }
   else {
-    if(cloud != before_vg) before_vg.reset(new PointCloud<PointXYZRGBNormalFace>);
+    if(cloud != before_vg) before_vg.reset(new PointCloud<PointT>);
   }
   
-  as::Normalization<PointXYZRGBNormalFace> normalization(reescale_param, centralize_param, align_param, cube_reescale_param);
+  as::Normalization<PointT> normalization(reescale_param, centralize_param, align_param, cube_reescale_param);
   normalization.normalize(cloud);
 
   if(std::find(fields.begin(), fields.end(), "normal_x") == fields.end() && save_normal) {
     auto pos = fields.begin();
     auto r_pos = std::find(fields.begin(), fields.end(), "rgb");
-    auto z_pos = std::find(fields.begin(), fields.end(), "rgb");
-    if(r_pos == fields.end()) pos = r_pos;
-    else if(z_pos == fields.end()) pos = z_pos;
-    fields.insert(pos, "curvature");
-    fields.insert(pos, "normal_z");
-    fields.insert(pos, "normal_y");
-    fields.insert(pos, "normal_x");
+    if(r_pos == fields.end()) r_pos = std::find(fields.begin(), fields.end(), "rgba");
+    auto z_pos = std::find(fields.begin(), fields.end(), "z");
+    if(r_pos != fields.end()) pos = r_pos + 1;
+    else if(z_pos != fields.end()) pos = z_pos + 1;
+    std::string normal[] = {"normal_x", "normal_y", "normal_z", "curvature"};
+    fields.insert(pos, normal, normal+4);
   }
 
   std::string out_filename = argv[2];
@@ -169,12 +170,14 @@ loadPCD(std::string filename, pcl::PCLPointCloud2& cloud)
 }
 
 void
-savePCD(std::string filename, pcl::PointCloud<PointXYZRGBNormalFace>& cloud, std::vector<std::string>& fields) {
+savePCD(std::string filename, pcl::PointCloud<PointT>& cloud, std::vector<std::string>& fields) {
   auto start_local = std::chrono::steady_clock::now();
   print_info("\n\nWriting Point Cloud...\n");
   bool has_x = std::find(fields.begin(), fields.end(), "x") == fields.end() ? false : true;
   bool has_r = std::find(fields.begin(), fields.end(), "rgb") == fields.end() ? false : true;
+  if(has_r == false) has_r = std::find(fields.begin(), fields.end(), "rgba") == fields.end() ? false : true;
   bool has_n = std::find(fields.begin(), fields.end(), "normal_x") == fields.end() ? false : true;
+  has_n = false;
   bool has_l = std::find(fields.begin(), fields.end(), "label") == fields.end() ? false : true;
   
   if(has_l) {
@@ -203,10 +206,10 @@ savePCD(std::string filename, pcl::PointCloud<PointXYZRGBNormalFace>& cloud, std
     if(has_r) {
       if(has_n) {
         pcl::PointCloud<pcl::PointXYZRGBNormal> out; copyPointCloud(cloud, out);
-        savePCDFileBinary(filename, out);
+        savePCDFile(filename, out);
       }
       else {
-        pcl::PointCloud<pcl::PointXYZRGB> out; copyPointCloud(cloud, out);
+        pcl::PointCloud<pcl::PointXYZRGBA> out; copyPointCloud(cloud, out);
         savePCDFileBinary(filename, out);
       }
     }
