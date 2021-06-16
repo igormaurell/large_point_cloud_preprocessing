@@ -23,8 +23,8 @@ namespace as
 
         NormalEstimation(double _neomp_param) : neomp_param(_neomp_param) { }
 
-        bool normalEstimationOMP(typename pcl::PointCloud<PointT>::Ptr& cloud, pcl::PointCloud<Normal>::Ptr& normals,
-                                 typename pcl::PointCloud<PointT>::Ptr& search)
+        bool normalEstimationOMP(typename pcl::PointCloud<PointT>::Ptr& cloud, typename pcl::PointCloud<PointT>::Ptr& search,
+                                 pcl::PointCloud<Normal>::Ptr& normals)
         {   
             if(neomp_param != 0) {
                 auto start = std::chrono::steady_clock::now();
@@ -47,24 +47,13 @@ namespace as
             }
         }
 
-        bool compute(typename pcl::PointCloud<PointT>::Ptr& cloud, pcl::PointCloud<Normal>::Ptr& normals,
-                     typename pcl::PointCloud<PointT>::Ptr& search)
+        bool compute(typename pcl::PointCloud<PointT>::Ptr& cloud, typename pcl::PointCloud<PointT>::Ptr& search,
+                     pcl::PointCloud<Normal>::Ptr& normals)
         {
             print_info("\n\nEstimating Normal of Point Cloud...");
-            bool result = normalEstimationOMP(cloud, normals, search);
-            print_info("Normal Estimated...\n");
+            bool result = normalEstimationOMP(cloud, search, normals);
+            print_info("\n");
             return result;
-        }
-
-        bool compute(pcl::PCLPointCloud2::Ptr& cloud, pcl::PointCloud<Normal>::Ptr& normals,
-                     typename pcl::PointCloud<PointT>::Ptr& search)
-        {
-            typename pcl::PointCloud<PointT>::Ptr cloud_pc(new pcl::PointCloud<PointT>);
-            pcl::fromPCLPointCloud2(*cloud, *cloud_pc);      
-            if (compute(cloud, normals, search)) {
-                return true;
-            }
-            return false;
         }
 
         void setNormalEstimationOMPParam(double _neomp_param) {

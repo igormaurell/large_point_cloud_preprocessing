@@ -36,7 +36,7 @@ namespace as
                 print_info("\nReescale...\n");
                 Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
                 addReescaleTransform(transform);
-                transformPointCloudWithNormals(*cloud, *cloud, transform);
+                transformPC(cloud, transform);
                 auto end = std::chrono::steady_clock::now();
                 print_info("The reescale process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
                 return true;
@@ -58,7 +58,7 @@ namespace as
                 print_info("\nCentralize...\n");
                 Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
                 addCentralizeTransform(cloud, transform);
-                transformPointCloudWithNormals(*cloud, *cloud, transform);
+                transformPC(cloud, transform);
                 auto end = std::chrono::steady_clock::now();
                 print_info("The Centralize process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
                 return true;
@@ -76,7 +76,7 @@ namespace as
                 print_info("\nAlign...\n");
                 Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
                 addAlignTransform(cloud, transform);
-                transformPointCloudWithNormals(*cloud, *cloud, transform);
+                transformPC(cloud, transform);
                 auto end = std::chrono::steady_clock::now();
                 print_info("The Align process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
                 return true;
@@ -86,7 +86,11 @@ namespace as
                 return false;
             }
         }
-
+        
+        template<
+            typename T = PointT,
+            pcl::traits::HasNormal<T>* = nullptr
+        >
         bool noiseAdd(typename pcl::PointCloud<PointT>::Ptr& cloud)
         {
             if(noise_add_param != 0.f) {
@@ -123,14 +127,24 @@ namespace as
             }
         }
 
+        template<
+            typename T = PointT,
+            pcl::traits::HasNoNormal<T>* = nullptr
+        >
+        bool noiseAdd(typename pcl::PointCloud<PointT>::Ptr& cloud)
+        {
+            print_info("\nNoise Add Error. Point type has no normal.\n");
+            return false;
+        }
+        
         bool cubeReescale(typename pcl::PointCloud<PointT>::Ptr& cloud)
         {
-            if(cube_reescale_param) {
+            if(cube_reescale_param > 0) {
                 auto start = std::chrono::steady_clock::now();
                 print_info("\nCube Reescale...\n");
                 Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
                 addCubeReescaleTransform(cloud, transform);
-                transformPointCloudWithNormals(*cloud, *cloud, transform);
+                transformPC(cloud, transform);
                 auto end = std::chrono::steady_clock::now();
                 print_info("The Cube Reescale process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
                 return true;
@@ -158,7 +172,7 @@ namespace as
                 if(methods.size() > 0) methods += "-";
                 methods += "Align";
             }
-            if(noise_add_param == 0.f && cube_reescale_param != 0.f) {
+            if(noise_add_param == 0.f && cube_reescale_param > 0.f) {
                 if(methods.size() > 0) methods += "-";
                 methods += "Cube Reescale";
             }
@@ -189,19 +203,19 @@ namespace as
             }
 
             bool cube_done = false;
-            if(noise_add_param == 0.f && cube_reescale_param != 0.f) {
+            if(noise_add_param == 0.f && cube_reescale_param > 0.f) {
                 addCubeReescaleTransform(cloud, transform);
                 cube_done = true;
             }
 
-            transformPointCloudWithNormals(*cloud, *cloud, transform);
-
-            std::cout<<print_after;
+            transformPC(cloud, transform);
 
             auto end = std::chrono::steady_clock::now();
             if(methods.size() > 0) {
-                print_info("The %s process took: ", methods.c_str()); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
+                print_info("\nThe %s process took: ", methods.c_str()); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
             }
+
+            std::cout<<print_after;
             
             noiseAdd(cloud);
 
@@ -209,17 +223,9 @@ namespace as
                 cubeReescale(cloud);
             }
 
-            print_info("Normalized.\n");
+            print_info("\n");
         }
-
-        void normalize(pcl::PCLPointCloud2::Ptr& cloud)
-        {
-            typename pcl::PointCloud<PointT>::Ptr cloud_pc(new pcl::PointCloud<PointT>);
-            pcl::fromPCLPointCloud2(*cloud, *cloud_pc);
-            normalize(cloud);
-            pcl::toPCLPointCloud2(*cloud, *cloud_pc);
-        }
-
+        
         void setReescaleParam(double _reescale_param) {
             reescale_param = _reescale_param;
         }
@@ -246,6 +252,25 @@ namespace as
         bool align_param;
         double noise_add_param;
         double cube_reescale_param;
+        
+        template<
+            typename T = PointT,
+            pcl::traits::HasNormal<T>* = nullptr
+        >
+        void transformPC(typename pcl::PointCloud<PointT>::Ptr& cloud, Eigen::Matrix4f& transform) {
+                std::cout<<transform<<std::endl;
+                transformPointCloudWithNormals(*cloud, *cloud, transform);
+        }
+
+        template<
+            typename T = PointT,
+            pcl::traits::HasNoNormal<T>* = nullptr
+        >
+        void transformPC(typename pcl::PointCloud<PointT>::Ptr& cloud, Eigen::Matrix4f& transform) {
+                std::cout<<transform<<std::endl;
+                transformPointCloud(*cloud, *cloud, transform);
+        }
+
 
         void addReescaleTransform(Eigen::Matrix4f& transform) {
             transform(3,3) = reescale_param;
