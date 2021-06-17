@@ -4,7 +4,7 @@
 
 The large_point_cloud_preprocessing software uses PCL to preprocess a point cloud, doing:
 ### Filtering
-- Cut-off
+- Crop Box
 - Voxel Grid
 - Statistical Outlier Removal
 ### Normal Estimation
