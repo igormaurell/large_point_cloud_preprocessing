@@ -14,7 +14,7 @@
 #include "preprocessing/normal_estimation.h"
 #include "preprocessing/normalization.h"
 
-bool separate_search_param;
+bool use_search_surface_param;
 
 //filters params (co = cut-off, vg = voxel-grid, sor = statistical outlier removal)
 std::vector<double> co_min;
@@ -66,9 +66,9 @@ main (int argc, char** argv)
 
   readParameters(argc, argv);
 
-  if(separate_search_param) pcl::fromPCLPointCloud2(*cloud_pc2, *search_xyz);
+  if(use_search_surface_param) pcl::fromPCLPointCloud2(*cloud_pc2, *search_xyz);
 
-  as::Filters<pcl::PCLPointCloud2>  filters(co_min, co_max, vg_params, sor_params);
+  as::Filters<pcl::PCLPointCloud2> filters(co_min, co_max, vg_params, sor_params);
   filters.filter(cloud_pc2);
 
   bool has_normal = false;
@@ -77,22 +77,22 @@ main (int argc, char** argv)
   }
 
   pcl::fromPCLPointCloud2(*cloud_pc2, *cloud_xyz);
-  if(!separate_search_param) search_xyz = cloud_xyz;
+  if(!use_search_surface_param) search_xyz = cloud_xyz;
   as::NormalEstimation<pcl::PointXYZ> ne(neomp_param);
 
   if(ne.compute(cloud_xyz, search_xyz, normals)) {
-    if(separate_search_param) search_xyz.reset(new pcl::PointCloud<pcl::PointXYZ>);
+    if(use_search_surface_param) search_xyz.reset(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::concatenateFields(*cloud_xyz, *normals, *cloud_normal);
     normals.reset(new pcl::PointCloud<pcl::Normal>);
 
     has_normal = true;
   }
   else if(has_normal) {
-    if(separate_search_param) search_xyz.reset(new pcl::PointCloud<pcl::PointXYZ>);
+    if(use_search_surface_param) search_xyz.reset(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromPCLPointCloud2(*cloud_pc2, *cloud_normal);
   }
   else {
-    if(separate_search_param) search_xyz.reset(new pcl::PointCloud<pcl::PointXYZ>);
+    if(use_search_surface_param) search_xyz.reset(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromPCLPointCloud2(*cloud_pc2, *cloud_xyz);
   }
   
@@ -111,7 +111,7 @@ main (int argc, char** argv)
   
   pcl::PCLPointCloud2::Ptr out_pc2(new pcl::PCLPointCloud2);
 
-  concatenateFields(*aux_pc2, *cloud_pc2, *out_pc2);
+  concatenateFields(*cloud_pc2, *aux_pc2, *out_pc2);
   cloud_pc2.reset(new pcl::PCLPointCloud2);
   aux_pc2.reset(new pcl::PCLPointCloud2);
 
@@ -127,7 +127,7 @@ main (int argc, char** argv)
 void
 readParameters(int argc, char** argv)
 {
-  separate_search_param = find_switch (argc, argv, "--separete_search");
+  use_search_surface_param = !find_switch (argc, argv, "--no_use_search_surface");
 
   parse_x_arguments (argc, argv, "--co_min", co_min);
   if(co_min.size() != 3)
@@ -188,7 +188,7 @@ savePCD(const std::string &filename, const pcl::PCLPointCloud2 &output)
   auto start_local = std::chrono::steady_clock::now();
   print_info("\n\nWriting Point Cloud...\n");
   PCDWriter w;
-  w.writeBinaryCompressed (filename, output);
+  w.writeASCII (filename, output);
   auto end_local = std::chrono::steady_clock::now();
   print_info("The writing process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end_local - start_local).count());
 }
@@ -198,7 +198,7 @@ printHelp (int, char **argv)
 {
   print_error ("Syntax is: %s input.pcd output.pcd <options>\n", argv[0]);
   print_info ("  where options are:\n");
-  print_info ("                 --separete_search               = to use the original cloud as search surface for normal estimation\n");
+  print_info ("                 ----no_use_search_surface       = to not use the original cloud as search surface for normal estimation\n");
   print_info ("                 --co_min x, y, z                = minimum x, y and z values to use\n");
   print_info ("                 --co_max x, y, z                = maximum x, y and z values to use\n");
   print_info ("                 --vg x, y, z | x                = leaf size for voxel grid for x, y and z cordinates, if just x is passed, it is used for all cordinates\n");
