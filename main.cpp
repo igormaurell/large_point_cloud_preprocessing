@@ -17,8 +17,8 @@
 bool use_search_surface_param;
 
 //filters params (co = cut-off, vg = voxel-grid, sor = statistical outlier removal)
-std::vector<double> co_min;
-std::vector<double> co_max;
+std::vector<double> cb_min;
+std::vector<double> cb_max;
 
 std::vector<double> vg_params;
 
@@ -68,7 +68,7 @@ main (int argc, char** argv)
 
   if(use_search_surface_param) pcl::fromPCLPointCloud2(*cloud_pc2, *search_xyz);
 
-  as::Filters<pcl::PCLPointCloud2> filters(co_min, co_max, vg_params, sor_params);
+  as::Filters<pcl::PCLPointCloud2> filters(cb_min, cb_max, vg_params, sor_params);
   filters.filter(cloud_pc2);
 
   bool has_normal = false;
@@ -129,16 +129,16 @@ readParameters(int argc, char** argv)
 {
   use_search_surface_param = !find_switch (argc, argv, "--no_use_search_surface");
 
-  parse_x_arguments (argc, argv, "--co_min", co_min);
-  if(co_min.size() != 3)
+  parse_x_arguments (argc, argv, "--cb_min", cb_min);
+  if(cb_min.size() != 3)
   {
-    if(co_min.size() != 0) print_error ("Cut off minimum must be specified with 3 numbers (%lu given).\n", co_min.size());
+    if(cb_min.size() != 0) print_error ("Cut off minimum must be specified with 3 numbers (%lu given).\n", cb_min.size());
   }
 
-  parse_x_arguments (argc, argv, "--co_max", co_max);
-  if(co_max.size() != 3)
+  parse_x_arguments (argc, argv, "--cb_max", cb_max);
+  if(cb_max.size() != 3)
   {
-    if(co_max.size() != 0) print_error ("Cut off maximum must be specified with 3 numbers (%lu given).\n", co_max.size());
+    if(cb_max.size() != 0) print_error ("Cut off maximum must be specified with 3 numbers (%lu given).\n", cb_max.size());
   }
   
   parse_x_arguments (argc, argv, "--vg", vg_params);
@@ -199,8 +199,8 @@ printHelp (int, char **argv)
   print_error ("Syntax is: %s input.pcd output.pcd <options>\n", argv[0]);
   print_info ("  where options are:\n");
   print_info ("                 ----no_use_search_surface       = to not use the original cloud as search surface for normal estimation\n");
-  print_info ("                 --co_min x, y, z                = minimum x, y and z values to use\n");
-  print_info ("                 --co_max x, y, z                = maximum x, y and z values to use\n");
+  print_info ("                 --cb_min x, y, z                = minimum x, y and z values to use\n");
+  print_info ("                 --cb_max x, y, z                = maximum x, y and z values to use\n");
   print_info ("                 --vg x, y, z | x                = leaf size for voxel grid for x, y and z cordinates, if just x is passed, it is used for all cordinates\n");
   print_info ("                 --sor mean, std                 = mean and std for a statistical outlier removal filter\n");
   print_info ("                 --ne radius                     = radius of the sphere used to estimate the nomal of each point\n");

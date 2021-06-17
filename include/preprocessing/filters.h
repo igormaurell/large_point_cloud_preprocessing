@@ -5,6 +5,7 @@
 #include <pcl/point_types.h>
 #include <pcl/filters/conditional_removal.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/crop_box.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/console/print.h>
 #include <pcl/console/parse.h>
@@ -22,30 +23,37 @@ namespace as
     public:
         Filters();
 
-        Filters(std::vector<double> _co_min, std::vector<double> _co_max, std::vector<double> _vg_params,
-                std::vector<double> _sor_params) : co_min(_co_min), co_max(_co_max),
+        Filters(std::vector<double> _cb_min, std::vector<double> _cb_max, std::vector<double> _vg_params,
+                std::vector<double> _sor_params) : cb_min(_cb_min), cb_max(_cb_max),
                                                 vg_params(_vg_params), sor_params(_sor_params) {}
 
-        bool cutOffFilter(typename pcl::PointCloud<PointT>::Ptr& cloud)
+        bool cropBoxFilter(typename pcl::PointCloud<PointT>::Ptr& cloud)
         {
-            if(co_min.size() == 3 || co_max.size() == 3) {
-                std::vector<double> lco_min, lco_max;
-                if(co_min.size() != 3) lco_min = std::vector<double>(3, -std::numeric_limits<double>::infinity());
-                else lco_min = co_min;
+            if(cb_min.size() == 3 || cb_max.size() == 3) {
+                std::vector<double> lcb_min, lcb_max;
+                if(cb_min.size() != 3) lcb_min = std::vector<double>(3, -std::numeric_limits<double>::infinity());
+                else lcb_min = cb_min;
 
-                if(co_max.size() != 3) lco_max = std::vector<double>(3, std::numeric_limits<double>::infinity());
-                else lco_max = co_max;
+                if(cb_max.size() != 3) lcb_max = std::vector<double>(3, std::numeric_limits<double>::infinity());
+                else lcb_max = cb_max;
 
                 auto start = std::chrono::steady_clock::now();
-                print_info("\nCut-off Filtering...\n");
-                
-                print_info("PointCloud after cut-off filtering: "); print_value("%d data points\n", cloud->width * cloud->height);
+                print_info("\nCrop Box Filtering...\n");
+                Eigen::Vector4f min_p, max_p;
+                min_p << lcb_min[0], lcb_min[1], lcb_min[2], 1;
+                max_p << lcb_max[0], lcb_max[1], lcb_max[2], 1;
+                typename pcl::CropBox<PointT> cp;
+                cp.setInputCloud(cloud);
+                cp.setMin(min_p);
+                cp.setMax(max_p);
+                cp.filter(*cloud);
+                print_info("PointCloud after Crop Box filtering: "); print_value("%d data points\n", cloud->width * cloud->height);
                 auto end = std::chrono::steady_clock::now();
-                print_info("The cut-off filtering process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
+                print_info("The Crop Box filtering process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
                 return true;
             }
             else {
-                print_info("\nCut-off was not parameterized\n");
+                print_info("\nCrop Box was not parameterized\n");
                 return false;
             }  
         }
@@ -97,7 +105,7 @@ namespace as
         void filter(typename pcl::PointCloud<PointT>::Ptr& cloud)
         {   
             print_info("\n\nFiltering Point Cloud...");
-            cutOffFilter(cloud);
+            cropBoxFilter(cloud);
 
             voxelGridFilter(cloud);
 
@@ -106,9 +114,9 @@ namespace as
             print_info("Filtered.\n");
         }
         
-        void setCutOffParams(std::vector<double>& _co_min, std::vector<double>& _co_max){
-            co_min = std::vector<double>(_co_min);
-            co_max = std::vector<double>(_co_max);
+        void setCutOffParams(std::vector<double>& _cb_min, std::vector<double>& _cb_max){
+            cb_min = std::vector<double>(_cb_min);
+            cb_max = std::vector<double>(_cb_max);
         }
         void setVoxelGridParams(std::vector<double>& _vg_params){
             vg_params = std::vector<double>(_vg_params);
@@ -120,8 +128,8 @@ namespace as
 
     private:
 
-        std::vector<double> co_min;
-        std::vector<double> co_max;
+        std::vector<double> cb_min;
+        std::vector<double> cb_max;
 
         std::vector<double> vg_params;
 
@@ -133,31 +141,39 @@ namespace as
     public:
         Filters();
 
-        Filters(std::vector<double> _co_min, std::vector<double> _co_max, std::vector<double> _vg_params,
-                std::vector<double> _sor_params) : co_min(_co_min), co_max(_co_max),
+        Filters(std::vector<double> _cb_min, std::vector<double> _cb_max, std::vector<double> _vg_params,
+                std::vector<double> _sor_params) : cb_min(_cb_min), cb_max(_cb_max),
                                                 vg_params(_vg_params), sor_params(_sor_params) {}
 
-        bool cutOffFilter(pcl::PCLPointCloud2::Ptr& cloud)
+        bool cropBoxFilter(pcl::PCLPointCloud2::Ptr& cloud)
         {
-            if(co_min.size() == 3 || co_max.size() == 3) {
-                std::vector<double> lco_min, lco_max;
-                if(co_min.size() != 3) lco_min = std::vector<double>(3, -std::numeric_limits<double>::infinity());
-                else lco_min = co_min;
+            if(cb_min.size() == 3 || cb_max.size() == 3) {
+                std::vector<double> lcb_min, lcb_max;
+                if(cb_min.size() != 3) lcb_min = std::vector<double>(3, -std::numeric_limits<double>::infinity());
+                else lcb_min = cb_min;
 
-                if(co_max.size() != 3) lco_max = std::vector<double>(3, std::numeric_limits<double>::infinity());
-                else lco_max = co_max;
+                if(cb_max.size() != 3) lcb_max = std::vector<double>(3, std::numeric_limits<double>::infinity());
+                else lcb_max = cb_max;
 
                 auto start = std::chrono::steady_clock::now();
-                print_info("\nCut-off Filtering...\n");
-                
-
-                print_info("PointCloud after cut-off filtering: "); print_value("%d data points\n", cloud->width * cloud->height);
+                print_info("\nCrop Box Filtering...\n");
+                Eigen::Vector4f min_p, max_p;
+                min_p << lcb_min[0], lcb_min[1], lcb_min[2], 1;
+                std::cout<<min_p(0)<<" "<<min_p(1)<<" "<<min_p(2)<<" "<<min_p(3)<<std::endl;
+                max_p << lcb_max[0], lcb_max[1], lcb_max[2], 1;
+                std::cout<<max_p(0)<<" "<<max_p(1)<<" "<<max_p(2)<<" "<<max_p(3)<<std::endl;
+                pcl::CropBox<pcl::PCLPointCloud2> cp;
+                cp.setInputCloud(cloud);
+                cp.setMin(min_p);
+                cp.setMax(max_p);
+                cp.filter(*cloud);
+                print_info("PointCloud after Crop Box filtering: "); print_value("%d data points\n", cloud->width * cloud->height);
                 auto end = std::chrono::steady_clock::now();
-                print_info("The cut-off filtering process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
+                print_info("The Crop Box filtering process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
                 return true;
             }
             else {
-                print_info("\nCut-off was not parameterized\n");
+                print_info("\nCrop Box was not parameterized\n");
                 return false;
             }  
         }
@@ -209,7 +225,7 @@ namespace as
         void filter(pcl::PCLPointCloud2::Ptr& cloud)
         {   
             print_info("\n\nFiltering Point Cloud...");
-            cutOffFilter(cloud);
+            cropBoxFilter(cloud);
 
             voxelGridFilter(cloud);
 
@@ -218,9 +234,9 @@ namespace as
             print_info("\n");
         }
         
-        void setCutOffParams(std::vector<double>& _co_min, std::vector<double>& _co_max){
-            co_min = std::vector<double>(_co_min);
-            co_max = std::vector<double>(_co_max);
+        void setCutOffParams(std::vector<double>& _cb_min, std::vector<double>& _cb_max){
+            cb_min = std::vector<double>(_cb_min);
+            cb_max = std::vector<double>(_cb_max);
         }
 
         void setVoxelGridParams(std::vector<double>& _vg_params){
@@ -233,8 +249,8 @@ namespace as
 
     private:
 
-        std::vector<double> co_min;
-        std::vector<double> co_max;
+        std::vector<double> cb_min;
+        std::vector<double> cb_max;
 
         std::vector<double> vg_params;
 
