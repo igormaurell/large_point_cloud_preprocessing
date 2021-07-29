@@ -9,7 +9,6 @@
 #include <pcl/console/print.h>
 #include <pcl/console/parse.h>
 
-#include "point_types/point_types.h"
 #include "preprocessing/filters.h"
 #include "preprocessing/normal_estimation.h"
 #include "preprocessing/normalization.h"
@@ -188,7 +187,7 @@ savePCD(const std::string &filename, const pcl::PCLPointCloud2 &output)
   auto start_local = std::chrono::steady_clock::now();
   print_info("\n\nWriting Point Cloud...\n");
   PCDWriter w;
-  w.writeASCII (filename, output);
+  w.writeBinaryCompressed (filename, output);
   auto end_local = std::chrono::steady_clock::now();
   print_info("The writing process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end_local - start_local).count());
 }

@@ -8,8 +8,6 @@
 #include <pcl/console/print.h>
 #include <pcl/console/parse.h>
 
-#include "point_types/point_types.h"
-
 using namespace pcl;
 using namespace pcl::io;
 using namespace pcl::console;

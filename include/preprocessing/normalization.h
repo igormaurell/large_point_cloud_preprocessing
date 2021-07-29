@@ -14,8 +14,6 @@
 #include <pcl/common/transforms.h>
 #include <pcl/common/pca.h>
 
-#include "point_types/point_types.h"
-
 using namespace pcl;
 using namespace pcl::io;
 using namespace pcl::console;
