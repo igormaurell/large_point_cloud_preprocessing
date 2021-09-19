@@ -15,9 +15,11 @@
 
 bool use_search_surface_param;
 
-//filters params (co = cut-off, vg = voxel-grid, sor = statistical outlier removal)
+//filters params (co = cut-off, rs = random sample,  vg = voxel-grid, sor = statistical outlier removal)
 std::vector<double> cb_min;
 std::vector<double> cb_max;
+
+unsigned int rs_param;
 
 std::vector<double> vg_params;
 
@@ -67,7 +69,7 @@ main (int argc, char** argv)
 
   if(use_search_surface_param) pcl::fromPCLPointCloud2(*cloud_pc2, *search_xyz);
 
-  as::Filters<pcl::PCLPointCloud2> filters(cb_min, cb_max, vg_params, sor_params);
+  as::Filters<pcl::PCLPointCloud2> filters(cb_min, cb_max, rs_param, vg_params, sor_params);
   filters.filter(cloud_pc2);
 
   bool has_normal = false;
@@ -139,6 +141,8 @@ readParameters(int argc, char** argv)
   {
     if(cb_max.size() != 0) print_error ("Cut off maximum must be specified with 3 numbers (%lu given).\n", cb_max.size());
   }
+
+  parse_argument (argc, argv, "--rs", rs_param);
   
   parse_x_arguments (argc, argv, "--vg", vg_params);
   if(vg_params.size() == 1)
@@ -197,15 +201,16 @@ printHelp (int, char **argv)
 {
   print_error ("Syntax is: %s input.pcd output.pcd <options>\n", argv[0]);
   print_info ("  where options are:\n");
-  print_info ("                 ----no_use_search_surface       = to not use the original cloud as search surface for normal estimation\n");
-  print_info ("                 --cb_min x, y, z                = minimum x, y and z values to use\n");
-  print_info ("                 --cb_max x, y, z                = maximum x, y and z values to use\n");
-  print_info ("                 --vg x, y, z | x                = leaf size for voxel grid for x, y and z cordinates, if just x is passed, it is used for all cordinates\n");
-  print_info ("                 --sor mean, std                 = mean and std for a statistical outlier removal filter\n");
-  print_info ("                 --ne radius                     = radius of the sphere used to estimate the nomal of each point\n");
-  print_info ("                 --reescale_factor factor        = factor that will reescale all the points (change measurament unity)\n");
-  print_info ("                 --centralize                    = use it to put the origin of the pointcloud at the geometric center of the points\n");
-  print_info ("                 --align                         = use it to aling the x axis of the coordinate system with the axis of minor variation on point cloud\n");
-  print_info ("                 --noise_limit limit             = limit of a random uniform noise applied at the normal direction for each point\n");
-  print_info ("                 --cube_reescale_factor factor   = make all the point cloud lies in a cube of edge size equal factor\n");
+  print_info ("                 --no_use_search_surface             = to not use the original cloud as search surface for normal estimation\n");
+  print_info ("                 --cb_min x, y, z                    = minimum x, y and z values to use\n");
+  print_info ("                 --cb_max x, y, z                    = maximum x, y and z values to use\n");
+  print_info ("                 --rs sample                         = number of points to random sample in the input point cloud\n");
+  print_info ("                 --vg leaf_x, leaf_y, leaf_z | leaf  = leaf size for voxel grid for x, y and z cordinates, if just leaf is passed, it is used for all cordinates\n");
+  print_info ("                 --sor mean, std                     = mean and std for a statistical outlier removal filter\n");
+  print_info ("                 --ne radius                         = radius of the sphere used to estimate the nomal of each point\n");
+  print_info ("                 --reescale_factor factor            = factor that will reescale all the points (change measurament unity)\n");
+  print_info ("                 --centralize                        = use it to put the origin of the pointcloud at the geometric center of the points\n");
+  print_info ("                 --align                             = use it to aling the x axis of the coordinate system with the axis of minor variation on point cloud\n");
+  print_info ("                 --noise_limit limit                 = limit of a random uniform noise applied at the normal direction for each point\n");
+  print_info ("                 --cube_reescale_factor factor       = make all the point cloud lies in a cube of edge size equal factor\n");
 }

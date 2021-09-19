@@ -3,7 +3,7 @@
 #define PCL_NO_PRECOMPILE
 
 #include <pcl/point_types.h>
-#include <pcl/filters/conditional_removal.h>
+#include <pcl/filters/random_sample.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/crop_box.h>
 #include <pcl/filters/statistical_outlier_removal.h>
@@ -21,8 +21,8 @@ namespace as
     public:
         Filters();
 
-        Filters(std::vector<double> _cb_min, std::vector<double> _cb_max, std::vector<double> _vg_params,
-                std::vector<double> _sor_params) : cb_min(_cb_min), cb_max(_cb_max),
+        Filters(std::vector<double> _cb_min, std::vector<double> _cb_max, unsigned int _rs_param, std::vector<double> _vg_params,
+                std::vector<double> _sor_params) : cb_min(_cb_min), cb_max(_cb_max), rs_param(_rs_param),
                                                 vg_params(_vg_params), sor_params(_sor_params) {}
 
         bool cropBoxFilter(typename pcl::PointCloud<PointT>::Ptr& cloud)
@@ -52,6 +52,26 @@ namespace as
             }
             else {
                 print_info("\nCrop Box was not parameterized\n");
+                return false;
+            }  
+        }
+
+        bool randomSampleFilter(typename pcl::PointCloud<PointT>::Ptr& cloud)
+        {
+            if(rs_param != 0) {
+                auto start = std::chrono::steady_clock::now();
+                print_info("\nRandom Sample Filtering...\n");
+                pcl::RandomSample<PointT> rs;
+                rs.setInputCloud(cloud);
+                rs.setSample(rs_param);
+                rs.filter(*cloud);
+                print_info("PointCloud after Random Sample filtering: "); print_value("%d data points\n", cloud->width * cloud->height);
+                auto end = std::chrono::steady_clock::now();
+                print_info("The Random Sample filtering process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
+                return true;
+            }
+            else {
+                print_info("\nRandom Sample was not parameterized\n");
                 return false;
             }  
         }
@@ -105,6 +125,8 @@ namespace as
             print_info("\n\nFiltering Point Cloud...");
             cropBoxFilter(cloud);
 
+            randomSampleFilter(cloud);
+
             voxelGridFilter(cloud);
 
             statisticalOutlierRemovalFilter(cloud);
@@ -116,6 +138,11 @@ namespace as
             cb_min = std::vector<double>(_cb_min);
             cb_max = std::vector<double>(_cb_max);
         }
+
+        void setRSParam(unsigned int _rs_param){
+            rs_param = _rs_param;
+        }
+
         void setVoxelGridParams(std::vector<double>& _vg_params){
             vg_params = std::vector<double>(_vg_params);
         }
@@ -129,6 +156,8 @@ namespace as
         std::vector<double> cb_min;
         std::vector<double> cb_max;
 
+        unsigned int rs_param;
+
         std::vector<double> vg_params;
 
         std::vector<double> sor_params;
@@ -139,10 +168,10 @@ namespace as
     public:
         Filters();
 
-        Filters(std::vector<double> _cb_min, std::vector<double> _cb_max, std::vector<double> _vg_params,
-                std::vector<double> _sor_params) : cb_min(_cb_min), cb_max(_cb_max),
+        Filters(std::vector<double> _cb_min, std::vector<double> _cb_max, unsigned int _rs_param, std::vector<double> _vg_params,
+                std::vector<double> _sor_params) : cb_min(_cb_min), cb_max(_cb_max), rs_param(_rs_param),
                                                 vg_params(_vg_params), sor_params(_sor_params) {}
-
+    
         bool cropBoxFilter(pcl::PCLPointCloud2::Ptr& cloud)
         {
             if(cb_min.size() == 3 || cb_max.size() == 3) {
@@ -157,9 +186,7 @@ namespace as
                 print_info("\nCrop Box Filtering...\n");
                 Eigen::Vector4f min_p, max_p;
                 min_p << lcb_min[0], lcb_min[1], lcb_min[2], 1;
-                std::cout<<min_p(0)<<" "<<min_p(1)<<" "<<min_p(2)<<" "<<min_p(3)<<std::endl;
                 max_p << lcb_max[0], lcb_max[1], lcb_max[2], 1;
-                std::cout<<max_p(0)<<" "<<max_p(1)<<" "<<max_p(2)<<" "<<max_p(3)<<std::endl;
                 pcl::CropBox<pcl::PCLPointCloud2> cp;
                 cp.setInputCloud(cloud);
                 cp.setMin(min_p);
@@ -172,6 +199,26 @@ namespace as
             }
             else {
                 print_info("\nCrop Box was not parameterized\n");
+                return false;
+            }  
+        }
+
+        bool randomSampleFilter(pcl::PCLPointCloud2::Ptr& cloud)
+        {
+            if(rs_param != 0) {
+                auto start = std::chrono::steady_clock::now();
+                print_info("\nRandom Sample Filtering...\n");
+                pcl::RandomSample<pcl::PCLPointCloud2> rs;
+                rs.setInputCloud(cloud);
+                rs.setSample(rs_param);
+                rs.filter(*cloud);
+                print_info("PointCloud after Random Sample filtering: "); print_value("%d data points\n", cloud->width * cloud->height);
+                auto end = std::chrono::steady_clock::now();
+                print_info("The Random Sample filtering process took: "); print_value("%lf sec\n", static_cast<std::chrono::duration<double>>(end - start).count());
+                return true;
+            }
+            else {
+                print_info("\nRandom Sample was not parameterized\n");
                 return false;
             }  
         }
@@ -225,16 +272,22 @@ namespace as
             print_info("\n\nFiltering Point Cloud...");
             cropBoxFilter(cloud);
 
+            randomSampleFilter(cloud);
+
             voxelGridFilter(cloud);
 
             statisticalOutlierRemovalFilter(cloud);
 
             print_info("\n");
         }
-        
+
         void setCutOffParams(std::vector<double>& _cb_min, std::vector<double>& _cb_max){
             cb_min = std::vector<double>(_cb_min);
             cb_max = std::vector<double>(_cb_max);
+        }
+
+        void setRSParams(unsigned int _rs_param){
+            rs_param = _rs_param;
         }
 
         void setVoxelGridParams(std::vector<double>& _vg_params){
@@ -246,9 +299,10 @@ namespace as
         }
 
     private:
-
         std::vector<double> cb_min;
         std::vector<double> cb_max;
+
+        unsigned int rs_param;
 
         std::vector<double> vg_params;
 
